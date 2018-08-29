@@ -2,20 +2,17 @@ import unittest
 import para_est
 import numpy as np
 
-def fun_rosenbrock(x):
+def fun_rosenbrock_vector(x):
     """
     An objective function for testing optimisation routines that return vectors
     """
-    return np.array([100 * (x[1] - x[0] ** 2), (1 - x[0])])
+    return np.array([10*(x[1]-x[0])**2,1-x[0]])
 
-def fun_rosenbrock_mse(x):
+def fun_rosenbrock_scalar(x):
     """
     An objective function for testing optimisation routines that return scalars
     """
-    vector = np.array([100 * (x[1] - x[0] ** 2), (1 - x[0])])
-    mse = np.sum(vector * vector)
-
-    return mse
+    return 100.0*(x[1]-x[0]**2.0)**2.0 + (1-x[0])**2.0
 
 def fun_rosenbrock_hessian(x):
     # type: (object) -> object
@@ -32,9 +29,9 @@ class Parameter_estimation_tests(unittest.TestCase):
         """
         ps = para_est.estimation()
         ps.set_initial_parameters(np.array([-1.9, 2]))
-        ps.set_objective_function(fun_rosenbrock)
+        ps.set_objective_function(fun_rosenbrock_vector)
         ps.optimise()
-        ps.set_objective_function(fun_rosenbrock_mse)
+        ps.set_objective_function(fun_rosenbrock_scalar)
         H, detH, condH, detH0 = ps.evaluate_hessian(ps.solutions.x, 1.e-7)
         print(ps.solutions.x)
         print('Finite difference Hessian')
