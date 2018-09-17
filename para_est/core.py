@@ -77,7 +77,10 @@ class estimation:
         """
         Routine for evaluating the Hessian matrix using central finite differences
         """
-        objfun = self.objective_function
+
+        def objfun(x):
+            return np.sum(self.objective_function(x, *self.objective_function_arguments))
+
         n = len(x)
         A = np.zeros(n)
         B = np.zeros(n)
