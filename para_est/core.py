@@ -42,7 +42,10 @@ class estimation:
 
     def set_objective_function(self, objective_function, arguments=None):
         """
-        Set the objective function
+        Set the objective function. Add additional input variables as a tuple
+        in the arguments option .e.g arguments=(variable1, variable2). If there
+        is only 1 variable then set as arguments=(variable1,). The comma is
+        important to define a tuple array.
         """
         if callable(objective_function):
             self.objective_function = objective_function
