@@ -76,13 +76,14 @@ class estimation:
                                        diff_step=1e-5)
         return self.solutions
 
-    def evaluate_hessian(self, x, stepsize):
+    def evaluate_hessian(self, x, stepsize, optimal_design=False):
         """
         Routine for evaluating the Hessian matrix using central finite differences
         """
 
         def objfun(x):
-            return np.sum(self.objective_function(x, *self.objective_function_arguments))
+            # Return sum of squares objective function
+            return np.sum(self.objective_function(x, *self.objective_function_arguments) ** 2)
 
         n = len(x)
         A = np.zeros(n)
@@ -96,10 +97,14 @@ class estimation:
 
         # Second-order derivatives based on function calls only (Abramowitz and Stegun 1972, p.884): for dense Hessian, 2n+4n^2/2 function calls needed.
 
+        if optimal_design:
+            E = 0.0
+        else:
+            E = objfun(x)
+
         H = np.zeros((n, n))
         for i in range(n):
             C = objfun(x + 2 * ee[:, i])
-            E = objfun(x)
             F = objfun(x - 2 * ee[:, i])
             H[i, i] = (- C + 16 * A[i] - 30 * E + 16 * B[i] - F) / (12 * (ee[i, i] ** 2))
             for j in range(i + 1, n):
