@@ -266,3 +266,5 @@ def _compute_absolute_step(rel_step, x0, method="cs"):
     sign_x0 = (x0 >= 0).astype(float) * 2 - 1
     return rel_step * sign_x0 * np.maximum(1.0, np.abs(x0))
 
+def eval_rmse(error_vector):
+    return ((np.sum(error_vector**2)/np.array(error_vector).shape)**(1.0/2.0))[0]
