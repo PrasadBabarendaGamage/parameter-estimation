@@ -268,3 +268,6 @@ def _compute_absolute_step(rel_step, x0, method="cs"):
 
 def eval_rmse(error_vector):
     return ((np.sum(error_vector**2)/np.array(error_vector).shape)**(1.0/2.0))[0]
+
+def eval_mse(error_vector):
+    return (np.sum(error_vector**2)/np.array(error_vector).shape)[0]
