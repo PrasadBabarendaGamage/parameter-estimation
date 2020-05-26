@@ -23,9 +23,9 @@ class estimation:
         self.objective_function_arguments = ()
         self.solutions = None
         self.logger = para_est.Logger()
-        self.ftol = 1e-8
-        self.xtol = 1e-8
-        self.gtol = 1e-8
+        self.ftol = 1e-5
+        self.xtol = 1e-5
+        self.gtol = 1e-5
 
     def set_upper_bounds(self,upper_bounds=np.inf):
         """
