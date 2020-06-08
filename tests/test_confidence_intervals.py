@@ -7,10 +7,15 @@ import h5py
 import para_est
 import vis
 
-def polynomial_evaluation(x, poly_coef=[0.15, -0.05]):
+def polynomial_evaluation(x, poly_coef=None):
     # -0.05 * x**5 + 0.15 * x**2 + 0
+    all_poly_coef = [0.15, -0.05]
+    if poly_coef is not None:
+        for idx, p in enumerate(poly_coef):
+            all_poly_coef[idx] = p
 
-    return np.polyval([poly_coef[1], 0.0, 0.0, poly_coef[0], 0.0, 0], x)
+    return np.polyval(
+        [all_poly_coef[1], 0.0, 0.0, all_poly_coef[0], 0.0, 0], x)
 
 def para_est_obj(parameters, d):
     """
@@ -26,8 +31,8 @@ if __name__ == '__main__':
         os.makedirs(results_folder)
 
     # Generate synthetic data (d) from a fifth degree polynomial
-    p = 2 # Number of parameters
-    n = 101 # Number of datapoints
+    p = 1 # Number of parameters
+    n = 201 # Number of datapoints
     poly_coef = [0.15, -0.05]
     x = np.linspace(0, 1, num=n)
     y = polynomial_evaluation(x)
@@ -53,7 +58,7 @@ if __name__ == '__main__':
     d = y + e
 
     # Estimate polynomial coefficients
-    x0 = poly_coef # Initial estimate
+    x0 = poly_coef[:p] # Initial estimate
     ps = para_est.estimation()
     ps.set_initial_parameters(np.atleast_1d(x0))
     ps.set_objective_function(para_est_obj, arguments=(d,), metric='e')
@@ -76,7 +81,7 @@ if __name__ == '__main__':
     y_optimal = polynomial_evaluation(x, poly_coef=opti_theta)
 
     # Visualise fit
-    visualise = False
+    visualise = True
     if visualise:
         plt.plot(x, y, label='True polynomial')
         plt.scatter(x, d, label='Noisy data points')
@@ -90,21 +95,33 @@ if __name__ == '__main__':
         plt.show()
 
     # Confidence intervals
-    alpha = 0.05
-    F_crit = stats.f.ppf(1.0 - alpha, p, n-p)
-    chi2 = stats.chi2.ppf(1.0 - alpha, p)
+    alpha95 = 0.05
+    alpha90 = 0.1
+
     f = para_est_obj(opti_theta, d)
     S = np.dot(f, f)
     s2 = S/(n-p) # Variance
     H_approx = 2*np.dot(J.T, J)
-    limit = p*s2*F_crit + S
+
+    def calc_limit(p, n, alpha, S):
+        F_crit = stats.f.ppf(1.0 - alpha, p, n - p)
+        chi2 = stats.chi2.ppf(1.0 - alpha, p)
+        return p * s2 * F_crit + S
+    limit95 = calc_limit(p, n, alpha95, S)
+    limit90 = calc_limit(p, n, alpha90, S)
+
 
     theta1 = np.linspace(0.0, 0.225, 100)
-    theta2 = np.linspace(-0.125, 0.125, 100)
-    X, Y = np.meshgrid(theta1, theta2)
-    thetas = np.array([
-        X.reshape(X.size),
-        Y.reshape(Y.size)]).T
+    if p == 1:
+        # Represent as a 2D array e.g. [[1],[2],...,[3]].
+        thetas = theta1.reshape((-1, 1))
+    elif p == 2:
+        theta2 = np.linspace(-0.125, 0.125, 100)
+        X, Y = np.meshgrid(theta1, theta2)
+        thetas = np.array([
+            X.reshape(X.size),
+            Y.reshape(Y.size)]).T
+
     obj = np.zeros(thetas.shape[0])
     obj_H_approx = np.zeros(thetas.shape[0])
     for idx, theta in enumerate(thetas):
@@ -113,37 +130,80 @@ if __name__ == '__main__':
         obj_H_approx[idx] = S + \
                             0.5*np.dot((theta-opti_theta).T,
                                        np.dot(H_approx, theta-opti_theta))
-    Z = obj.reshape(X.shape)
-    Z_H_approx = obj_H_approx.reshape(X.shape)
-    interval = np.sqrt(np.diagonal(s2*np.linalg.inv(H_approx))) *\
-               stats.t.ppf((1 + (1.0 - alpha))/2, n-p)
+
+    if p == 1:
+        Z = obj
+        Z_H_approx = obj_H_approx
+    elif p == 2:
+        Z = obj.reshape(X.shape)
+        Z_H_approx = obj_H_approx.reshape(X.shape)
 
     sns.set(style="darkgrid")
     f, ax = plt.subplots(figsize=(10, 8))
-    ax.set_aspect("equal")
-    # Plot contour shades
-    ax = vis.contour_plot(
-        X, Y, Z, cmap="Blues", shade=True, shade_lowest=True, cbar=True, ax=ax)
+    plt.xlabel('theta1')
+    plt.xlim([min(theta1), max(theta1)])
+    if p == 1:
+        plt.ylabel('SSD')
+        plt.ylim([0, max(Z)])
 
-    # Plot objective function contour lines
-    ax = vis.contour_plot(
-        X, Y, Z, cmap="Blues", n_levels=[limit], shade=False,
-        shade_lowest=True, cbar=False, ax=ax)
-    # Plot Hessian approximation lines
-    ax = vis.contour_plot(
-        X, Y, Z_H_approx, colors='r', n_levels=[limit], shade=False,
-        shade_lowest=False, cbar=False, ax=ax)
+        import pandas as pd
+        df = pd.DataFrame()
+        df['theta1'] = theta1
+        df['SSD'] = Z
+        df['SSD_H_approx'] = Z_H_approx
+        df['95% CI'] = np.ones_like(theta1)*limit95
+        df['90% CI'] = np.ones_like(theta1)*limit90
+
+        from scipy.spatial import cKDTree
+        tree = cKDTree(Z.reshape((-1, 1)))
+        neighbours = 2
+        idxs95 = tree.query([limit95], k=neighbours)[1]
+        idxs90 = tree.query([limit90], k=neighbours)[1]
+
+        #ax = sns.lineplot(x="theta1", y="SSD", data=df, dashes=True)
+        plt.plot(
+            theta1, Z, 'r', label='Objective function')
+        plt.plot(theta1, Z_H_approx, 'g--',
+                 label='Objective function from H approx')
+        plt.plot(theta1, df['95% CI'], 'k-',
+                 label='95% CI')
+        plt.plot(theta1, df['90% CI'], 'k--',
+                 label='90% CI')
+        plt.plot(np.ones_like(theta1)*theta1[idxs95[0]], np.linspace(0, max(Z), len(theta1)), 'k-')
+        plt.plot(np.ones_like(theta1)*theta1[idxs95[1]], np.linspace(0, max(Z), len(theta1)), 'k-')
+        plt.plot(np.ones_like(theta1)*theta1[idxs90[0]], np.linspace(0, max(Z), len(theta1)), 'k--')
+        plt.plot(np.ones_like(theta1)*theta1[idxs90[1]], np.linspace(0, max(Z), len(theta1)), 'k--')
+        plt.plot(
+            opti_theta[0], S, 'ro', ms=10, label='identified solution')
+        plt.plot(poly_coef[0], 0, 'bo', ms=10,
+                 label='true solution')
+        #ax.axhline(limit)
+    elif p == 2:
+        ax.set_aspect("equal")
+        plt.ylabel('theta2')
+        plt.ylim([min(theta2), max(theta2)])
+
+        # Plot contour shades
+        ax = vis.contour_plot(
+            X, Y, Z, cmap="Blues", shade=True, shade_lowest=True, cbar=True, ax=ax)
+
+        # Plot objective function contour lines
+        ax = vis.contour_plot(
+            X, Y, Z, colors='g', n_levels=[limit95], shade=False,
+            shade_lowest=True, cbar=False, ax=ax, linewidths=4)
+        # Plot Hessian approximation lines
+        ax = vis.contour_plot(
+            X, Y, Z_H_approx, colors='r', n_levels=[limit95], shade=False,
+            shade_lowest=False, cbar=False, ax=ax, linestyles='dashed',
+            linewidths=4)
+        plt.plot(
+            opti_theta[0], opti_theta[1], 'ro', ms=10, label='identified solution')
+        plt.plot(poly_coef[0], poly_coef[1], 'bo', ms=10,
+                 label='true solution')
 
     plt.title('Sum of squared differences objective function')
-    plt.plot(
-        opti_theta[0], opti_theta[1], 'ro', ms=10, label='identified solution')
-    plt.plot(poly_coef[0], poly_coef[1], 'bo', ms=10, label='true solution')
-    plt.errorbar(
-        opti_theta[0], opti_theta[1], xerr=interval[0], yerr=interval[1],
-        capthick=5)
     plt.legend(loc='lower left', numpoints=1)
-    plt.xlabel('theta1')
-    plt.ylabel('theta2')
+
     plt.show()
 
     a = 1
