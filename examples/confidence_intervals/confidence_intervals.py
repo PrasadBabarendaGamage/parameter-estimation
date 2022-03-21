@@ -1,5 +1,12 @@
+"""Example for calculating confidence intervals after parameter estimation.
+
+Authors: Thiranja Prasad Babarenda Gamage
+Auckland Bioengineering Institute.
+"""
+
 import seaborn as sns
 import matplotlib.pyplot as plt
+import matplotlib
 import os
 import numpy as np
 from scipy import stats
@@ -18,15 +25,17 @@ def polynomial_evaluation(x, poly_coef=None):
         [all_poly_coef[1], 0.0, 0.0, all_poly_coef[0], 0.0, 0], x)
 
 def para_est_obj(parameters, x, d):
-    """
-    An objective function for testing optimisation routines that return vectors
+    """Parameter estimation.
     """
     y = polynomial_evaluation(x, poly_coef=parameters)
     return y-d
 
-if __name__ == '__main__':
+def main(cfg, test=False):
 
-    results_folder = './results/confidence_interval'
+    # Headless plotting.
+    matplotlib.use('Agg')
+
+    results_folder = './results'
     if not os.path.exists(results_folder):
         os.makedirs(results_folder)
 
@@ -39,8 +48,13 @@ if __name__ == '__main__':
 
     # Add noise to synthetic data
     noise_path = os.path.join(results_folder, 'noise.h5')
-    generate = True
-    if generate:
+    if test:
+        f_handle = h5py.File(noise_path, 'r')
+        mu = f_handle['mu'][...]
+        sigma = f_handle['sigma'][...]
+        e = f_handle['e'][...]
+        f_handle.close()
+    else:
         mu = 0 # Mean
         sigma = 0.05 # Standard deviation
         e = np.random.normal(mu, sigma, n)
@@ -49,19 +63,13 @@ if __name__ == '__main__':
         f_handle.create_dataset('sigma', data=sigma)
         f_handle.create_dataset('e', data=e)
         f_handle.close()
-    else:
-        f_handle = h5py.File(noise_path, 'r')
-        mu = f_handle['mu'][...]
-        sigma = f_handle['sigma'][...]
-        e = f_handle['e'][...]
-        f_handle.close()
     d = y + e
 
     # Estimate polynomial coefficients
     x0 = poly_coef[:p] # Initial estimate
     ps = para_est.estimation()
     ps.set_initial_parameters(np.atleast_1d(x0))
-    ps.set_objective_function(para_est_obj, arguments=(d,), metric='e')
+    ps.set_objective_function(para_est_obj, arguments=(x, d,), metric='e')
     ps.set_gtol(1e-15)
     ps.optimise()
 
@@ -98,19 +106,20 @@ if __name__ == '__main__':
     alpha95 = 0.05
     alpha90 = 0.1
 
-    f = para_est_obj(opti_theta, d)
+    f = para_est_obj(opti_theta, x, d)
     S = np.dot(f, f)
     s2 = S/(n-p) # Variance
     H_approx = 2*np.dot(J.T, J)
 
     def calc_limit(p, n, alpha, S):
         F_crit = stats.f.ppf(1.0 - alpha, p, n - p)
-        chi2 = stats.chi2.ppf(1.0 - alpha, p)
+        # chi2 = stats.chi2.ppf(1.0 - alpha, p)
         return p * s2 * F_crit + S
+
     limit95 = calc_limit(p, n, alpha95, S)
     limit90 = calc_limit(p, n, alpha90, S)
 
-
+    # Define parameters for sweeps.
     theta1 = np.linspace(0.0, 0.225, 100)
     if p == 1:
         # Represent as a 2D array e.g. [[1],[2],...,[3]].
@@ -122,15 +131,16 @@ if __name__ == '__main__':
             X.reshape(X.size),
             Y.reshape(Y.size)]).T
 
+    # Evaluate objective function at each parameter sweep point - direct
+    # evaluation and approximation from the Hessian.
     obj = np.zeros(thetas.shape[0])
     obj_H_approx = np.zeros(thetas.shape[0])
     for idx, theta in enumerate(thetas):
-        f = para_est_obj(theta, d)
+        f = para_est_obj(theta, x, d)
         obj[idx] = np.dot(f, f)
         obj_H_approx[idx] = S + \
                             0.5*np.dot((theta-opti_theta).T,
                                        np.dot(H_approx, theta-opti_theta))
-
     if p == 1:
         Z = obj
         Z_H_approx = obj_H_approx
@@ -138,6 +148,7 @@ if __name__ == '__main__':
         Z = obj.reshape(X.shape)
         Z_H_approx = obj_H_approx.reshape(X.shape)
 
+    # Visualise objective function.
     sns.set(style="darkgrid")
     f, ax = plt.subplots(figsize=(10, 8))
     plt.xlabel('theta1')
@@ -160,7 +171,6 @@ if __name__ == '__main__':
         idxs95 = tree.query([limit95], k=neighbours)[1]
         idxs90 = tree.query([limit90], k=neighbours)[1]
 
-        #ax = sns.lineplot(x="theta1", y="SSD", data=df, dashes=True)
         plt.plot(
             theta1, Z, 'r', label='Objective function')
         plt.plot(theta1, Z_H_approx, 'g--',
@@ -197,18 +207,17 @@ if __name__ == '__main__':
             shade_lowest=False, cbar=False, ax=ax, linestyles='dashed',
             linewidths=4)
         plt.plot(
-            opti_theta[0], opti_theta[1], 'ro', ms=10, label='identified solution')
+            opti_theta[0], opti_theta[1], 'ro', ms=10,
+            label='identified solution')
         plt.plot(poly_coef[0], poly_coef[1], 'bo', ms=10,
                  label='true solution')
 
     plt.title('Sum of squared differences objective function')
     plt.legend(loc='lower left', numpoints=1)
-
+    plt.savefig(os.path.join(results_folder, 'parameter_sweep.png'))
     plt.show()
+    plt.show()
+    plt.clf()
 
-    a = 1
-
-    initial_parameters = [1.0]
-    # Define target data e.g. node x,y,z positions in prone or supine
-    num_evaluation_positions = 5000
-    target_positions = np.zeros([num_evaluation_positions, 3])
+if __name__ == '__main__':
+    main(None, test=False)

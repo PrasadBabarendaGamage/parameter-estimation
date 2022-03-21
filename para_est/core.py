@@ -36,7 +36,7 @@ class estimation:
         self.upper_bounds = upper_bounds
 
 
-    def set_lower_bounds(self,lower_bounds=-np.inf):
+    def set_lower_bounds(self, lower_bounds=-np.inf):
         """
         Set lower bounds. Defaults to lower_bounds=np.inf ie not bounds. 
         Bounds need to be specified as a numpy 1D array with a length equal 
@@ -44,7 +44,7 @@ class estimation:
         """
         self.lower_bounds = lower_bounds
 
-    def set_initial_parameters(self,initial_parameters):
+    def set_initial_parameters(self, initial_parameters):
         """
         Set initial parameters (numpy array)
         """

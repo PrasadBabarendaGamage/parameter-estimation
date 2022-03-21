@@ -1,6 +1,7 @@
 import numpy as np
 import para_est
 
+
 def objective_function(parameters, target_positions):
     """
     An objective function for testing optimisation routines that return vectors
@@ -19,7 +20,6 @@ def objective_function(parameters, target_positions):
 
 
 if __name__ == '__main__':
-
     initial_parameters = [1.0]
     # Define target data e.g. node x,y,z positions in prone or supine
     num_evaluation_positions = 5000
@@ -28,14 +28,15 @@ if __name__ == '__main__':
     # Setup a estimation object
     ps = para_est.estimation()
     ps.set_initial_parameters(np.atleast_1d(initial_parameters))
-    ps.set_objective_function(objective_function, arguments=(target_positions,))
+    ps.set_objective_function(objective_function,
+                              arguments=(target_positions,))
     ps.optimise()
 
     # Display results
     print('Initial parameters: {0}'.format(initial_parameters))
     print('Optimal parameters: {0}'.format(ps.solutions.x))
-    print('Objective function at optimal parameters: {0}'.format(ps.solutions.fun))
+    print('Objective function at optimal parameters: {0}'.format(
+        ps.solutions.fun))
     print('Cost function: {0}'.format(ps.solutions.cost))
     print('Success: {0}'.format(ps.solutions.success))
     print('Message: {0}'.format(ps.solutions.message))
-
